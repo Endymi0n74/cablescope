@@ -18,6 +18,29 @@ jobs:
       upload_url: ${{ steps.create-release.outputs.upload_url }}
     steps:
       - uses: actions/checkout@v4
+
+      # tauri-action lance aussi `npm run tauri build` dans ce job : il lui faut l'environnement complet.
+      - name: Dépendances Linux
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libgtk-3-dev patchelf build-essential curl wget file libssl-dev
+
+      - name: Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Installer les dépendances npm
+        run: npm ci
+
       - name: Créer la release
         id: create-release
         uses: tauri-apps/tauri-action@v0
