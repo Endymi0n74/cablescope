@@ -53,6 +53,17 @@ L'artefact se trouve dans `src-tauri/target/release/bundle/`.
 > lance mais le scan retournera un état vide tant que des adaptateurs
 > spécifiques ne sont pas implémentés.
 
+## 🤖 CI — Builds multi-plateforme
+
+Un workflow **GitHub Actions** (`.github/workflows/release.yml`) build et attache les artefacts
+à une release GitHub **à chaque tag `v*`** (ex. `v1.0.0`) :
+
+- **Windows** (testé) : installeur NSIS `.exe` + `.msi`
+- **macOS** (non testé) : `.dmg` / `.app`
+- **Linux** (non testé) : `.deb` / `.AppImage`
+
+Le workflow est aussi déclenchable manuellement depuis l'onglet Actions (`workflow_dispatch`).
+
 ## 🧪 Tests
 
 ```bash
