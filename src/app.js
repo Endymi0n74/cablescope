@@ -29,7 +29,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   initCrossHighlight();
   initControllerToggle();
   initHubContextMenu();
-  document.getElementById('btn-back')?.addEventListener('click', goBack);
   document.getElementById('clear-alert-history')?.addEventListener('click', () => {
     alertHistory = [];
     renderAlertHistory();
@@ -104,8 +103,6 @@ function initTabs() {
       const tabId = `tab-${tab.dataset.tab}`;
       document.getElementById(tabId)?.classList.add('active');
 
-      // Record plain tab switches (skipped for programmatic navigations).
-      if (!suppressNavPush) pushNav(tab.dataset.tab, null);
     });
   });
 }
@@ -202,12 +199,6 @@ function initControllerToggle() {
 
 // ─── Keyboard shortcuts ────────────────────────────────────────
 document.addEventListener('keydown', (e) => {
-  // Alt+Left = back button (when there is a history to restore).
-  if (e.altKey && e.key === 'ArrowLeft' && navHistory.length > 0) {
-    e.preventDefault();
-    goBack();
-    return;
-  }
   // F5 = full scan (don't let WebView reload the page).
   if (e.key === 'F5') {
     e.preventDefault();
@@ -233,45 +224,8 @@ document.addEventListener('keydown', (e) => {
     }
   }
 });
-
-// ─── Navigation history (hub back button) ─────────────────────
-// Stack of visited locations: { tab, hub: name|null }.
-// hub is null for plain tab switches (no specific hub targeted).
-const navHistory = [];
-// Set while switchTabByName() triggers tab.click() programmatically, so the
-// click handler does not push a second entry (callers push their own).
-let suppressNavPush = false;
-
-function pushNav(tab, hub) {
-  const last = navHistory[navHistory.length - 1];
-  // Avoid consecutive duplicates.
-  if (last && last.tab === tab && last.hub === hub) return;
-  navHistory.push({ tab, hub });
-  updateBackButton();
-}
-
-function updateBackButton() {
-  const btn = document.getElementById('btn-back');
-  if (btn) btn.hidden = navHistory.length === 0;
-}
-
-function goBack() {
-  const prev = navHistory.pop();
-  updateBackButton();
-  if (!prev) return;
-  if (prev.tab === 'ports') {
-    openControllerInPorts(prev.hub, true);
-  } else if (prev.hub) {
-    openHubInDevices(prev.hub, true);
-  } else {
-    // Plain tab switch with no hub: just restore the tab.
-    switchTabByName(prev.tab);
-  }
-}
-
 // Switch to the Devices tab and flash the hub group matching a controller name.
-function openHubInDevices(name, skipHistory) {
-  if (!skipHistory) pushNav('devices', name);
+function openHubInDevices(name) {
   switchTabByName('devices');
 
   // If a search filter hides this hub, clear it so the group is visible.
@@ -308,10 +262,6 @@ function initCrossHighlight() {
     const card = e.target.closest('.port-card[data-port-id]');
     if (card) {
       const portId = card.dataset.portId;
-      const hubName = lastSnapshot
-        ? (lastSnapshot.devices.find(d => d.port_id === portId) || {}).hub_name || ''
-        : '';
-      if (hubName) pushNav('devices', hubName);
       switchTabByName('devices');
       flashByDataPortId('device-row', portId);
       return;
@@ -319,10 +269,6 @@ function initCrossHighlight() {
     // Click on a device row -> show Ports tab, flash the matching port card.
     const row = e.target.closest('.device-row[data-port-id]');
     if (row && row.dataset.portId) {
-      const hubName = lastSnapshot
-        ? (lastSnapshot.devices.find(d => d.port_id === row.dataset.portId) || {}).hub_name || ''
-        : '';
-      if (hubName) pushNav('ports', hubName);
       switchTabByName('ports');
       flashByDataPortId('port-card', row.dataset.portId);
       return;
@@ -375,8 +321,7 @@ async function rescanHub(name) {
 }
 
 // Switch to the Ports tab, expand (if collapsed) and flash a controller section.
-function openControllerInPorts(name, skipHistory) {
-  if (!skipHistory) pushNav('ports', name);
+function openControllerInPorts(name) {
   switchTabByName('ports');
 
   // If collapsed, expand it and re-render so its cards are visible.
@@ -400,9 +345,7 @@ function openControllerInPorts(name, skipHistory) {
 function switchTabByName(name) {
   const tab = document.querySelector(`.tab[data-tab="${name}"]`);
   if (!tab) return;
-  suppressNavPush = true;
   tab.click();
-  suppressNavPush = false;
 }
 
 // Flash every element of a class whose data-port-id matches (port ids contain

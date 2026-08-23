@@ -19,7 +19,7 @@ devices, topologie physique et état de charge déduit.
 - **Onglet Power** — badge par appareil : chargeur/source, mobile en charge, hub, webcam, consommateur
 - **Alertes d'occupation** — seuil configurable (% de ports occupés par hub), notification
   saturation + retour à la normale, historique persistant dans Settings
-- **Navigation** — cross-highlight Port ↔ Device, bouton retour (Alt+←), re-scan ciblé d'un hub
+- **Navigation** — cross-highlight Port ↔ Device, re-scan ciblé d'un hub
   (double-clic sur sa barre), menu contextuel (clic droit), raccourcis (F5 = scan, Ctrl+F = recherche)
 - **Base VID/PID** — 240+ appareils connus (POCO/Xiaomi, Logitech, Creative, Realtek, Anker, Apple…) et 60+ câbles/chargeurs
 - **Export JSON** — snapshot complet (controllers, ports, devices, power_role) depuis Settings
@@ -76,7 +76,6 @@ cd src-tauri && cargo test    # 15 tests : parsing, base VID/PID, filtrage scan_
 |---|---|
 | `F5` | Scan complet |
 | `Ctrl+F` | Recherche dans Devices |
-| `Alt+←` | Retour (historique de navigation) |
 | `Échap` | Fermer le menu contextuel |
 
 ## 📁 Structure
