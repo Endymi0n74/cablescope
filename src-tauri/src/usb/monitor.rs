@@ -3,7 +3,9 @@
 // Emits Tauri events when devices are plugged/unplugged.
 
 use serde::{Deserialize, Serialize};
+#[cfg(windows)]
 use std::ffi::c_void;
+#[cfg(windows)]
 use std::sync::OnceLock;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -14,18 +16,29 @@ pub struct DeviceEvent {
 
 // ─── Win32 FFI Types ──────────────────────────────────────────────
 
+#[cfg(windows)]
 type HWND = *mut c_void;
+#[cfg(windows)]
 type HDEVNOTIFY = *mut c_void;
+#[cfg(windows)]
 type LRESULT = isize;
+#[cfg(windows)]
 type WPARAM = usize;
+#[cfg(windows)]
 type LPARAM = isize;
 
+#[cfg(windows)]
 const WM_DEVICECHANGE: u32 = 0x0219;
+#[cfg(windows)]
 const DBT_DEVICEARRIVAL: u32 = 0x8000;
+#[cfg(windows)]
 const DBT_DEVICEREMOVECOMPLETE: u32 = 0x8004;
+#[cfg(windows)]
 const DBT_DEVTYP_DEVICEINTERFACE: u32 = 0x00000005;
+#[cfg(windows)]
 const DEVICE_NOTIFY_WINDOW_HANDLE: u32 = 0x00000000;
 
+#[cfg(windows)]
 #[repr(C)]
 struct DevBroadcastDeviceInterfaceW {
     dbcc_size: u32,
@@ -38,6 +51,7 @@ struct DevBroadcastDeviceInterfaceW {
 // GUID_NULL: receive notifications for ALL device interface classes.
 // (Some machines/VMs register non-standard USB interface GUIDs, so we
 // cannot rely on a hardcoded USB class GUID here.)
+#[cfg(windows)]
 const USB_DEVICE_INTERFACE_GUID: [u8; 16] = [0u8; 16];
 
 #[cfg(windows)]
@@ -63,8 +77,10 @@ extern "system" {
     fn GetModuleHandleW(lpModuleName: *const u16) -> *mut c_void;
 }
 
+#[cfg(windows)]
 type HANDLE = *mut c_void;
 
+#[cfg(windows)]
 #[repr(C)]
 struct WndClassExW {
     cb_size: u32,
@@ -81,8 +97,10 @@ struct WndClassExW {
     h_icon_sm: HWND,
 }
 
+#[cfg(windows)]
 type WndProc = extern "system" fn(HWND, u32, WPARAM, LPARAM) -> LRESULT;
 
+#[cfg(windows)]
 #[repr(C)]
 struct Msg {
     hwnd: HWND,
@@ -93,6 +111,7 @@ struct Msg {
     pt: Point,
 }
 
+#[cfg(windows)]
 #[repr(C)]
 #[derive(Default)]
 struct Point {
@@ -102,6 +121,7 @@ struct Point {
 
 // ─── Event Storage ────────────────────────────────────────────────
 
+#[cfg(windows)]
 static EVENT_TX: OnceLock<std::sync::mpsc::Sender<DeviceEvent>> = OnceLock::new();
 
 /// Start the device monitor in a background thread.
@@ -110,15 +130,23 @@ static EVENT_TX: OnceLock<std::sync::mpsc::Sender<DeviceEvent>> = OnceLock::new(
 pub fn start_monitor() -> std::sync::mpsc::Receiver<DeviceEvent> {
     let (tx, rx) = std::sync::mpsc::channel();
 
-    std::thread::spawn(move || {
-        unsafe { monitor_thread_main(tx) };
-    });
+    #[cfg(windows)]
+    {
+        std::thread::spawn(move || unsafe { monitor_thread_main(tx) });
+    }
+    #[cfg(not(windows))]
+    {
+        // Device-change monitoring relies on Win32 RegisterDeviceNotificationW.
+        // On other platforms the channel simply stays open without events.
+        let _ = tx;
+    }
 
     rx
 }
 
 // ─── Monitor Thread Implementation ────────────────────────────────
 
+#[cfg(windows)]
 unsafe fn monitor_thread_main(tx: std::sync::mpsc::Sender<DeviceEvent>) {
     // Store sender for window_proc access
     let _ = EVENT_TX.set(tx);
@@ -206,6 +234,7 @@ unsafe fn monitor_thread_main(tx: std::sync::mpsc::Sender<DeviceEvent>) {
     log_info("[CableScope] Device monitor stopped");
 }
 
+#[cfg(windows)]
 extern "system" fn window_proc(
     hwnd: HWND,
     msg: u32,
@@ -241,10 +270,12 @@ extern "system" fn window_proc(
 
 // ─── Helpers ──────────────────────────────────────────────────────
 
+#[cfg(windows)]
 fn wide(s: &str) -> Vec<u16> {
     s.encode_utf16().chain(std::iter::once(0)).collect()
 }
 
+#[cfg(windows)]
 fn timestamp_str() -> String {
     use std::time::{SystemTime, UNIX_EPOCH};
     let secs = SystemTime::now()
@@ -257,6 +288,7 @@ fn timestamp_str() -> String {
     format!("{:02}:{:02}:{:02}", h, m, s)
 }
 
+#[cfg(windows)]
 fn log_info(msg: &str) {
     // Write to our log file
     super::super::logger::log_file(msg);

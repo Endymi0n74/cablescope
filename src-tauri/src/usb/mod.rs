@@ -4,7 +4,9 @@
 pub mod monitor;
 
 use serde::{Deserialize, Serialize};
-use anyhow::{Result, Context};
+use anyhow::Result;
+#[cfg(windows)]
+use anyhow::Context;
 
 // ─── Data Types ───────────────────────────────────────────────────
 
@@ -89,23 +91,34 @@ pub struct UsbDevice {
 
 // ─── Raw Win32 FFI ────────────────────────────────────────────────
 
+#[cfg(windows)]
 type HANDLE = *mut core::ffi::c_void;
+#[cfg(windows)]
 const INVALID_HANDLE_VALUE: HANDLE = -1isize as HANDLE;
+#[cfg(windows)]
 const NULL: *mut core::ffi::c_void = core::ptr::null_mut();
 
+#[cfg(windows)]
 const GENERIC_READ: u32 = 0x80000000;
+#[cfg(windows)]
 const OPEN_EXISTING: u32 = 3;
+#[cfg(windows)]
 const DIGCF_PRESENT: u32 = 0x02;
+#[cfg(windows)]
 const DIGCF_ALLCLASSES: u32 = 0x04;
+#[cfg(windows)]
 const DIGCF_DEVICEINTERFACE: u32 = 0x10;
 
 // IOCTL codes probed empirically on this system's USB stack
+#[cfg(windows)]
 const IOCTL_USB_GET_NODE_INFORMATION: u32 = 0x220408;
+#[cfg(windows)]
 const IOCTL_USB_GET_PORT_STATUS: u32 = 0x220010;
 
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
+#[cfg(windows)]
 struct GUID {
     data1: u32,
     data2: u16,
@@ -114,6 +127,7 @@ struct GUID {
 }
 
 #[repr(C)]
+#[cfg(windows)]
 struct SpDeviceInterfaceData {
     cb_size: u32,
     interface_class_guid: GUID,
@@ -123,6 +137,7 @@ struct SpDeviceInterfaceData {
 
 // SP_DEVINFO_DATA: cbSize(4) + ClassGuid(16) + DevInst(4) + Reserved(8) = 32 on x64
 #[repr(C)]
+#[cfg(windows)]
 struct SpDevInfoData {
     cb_size: u32,
     class_guid: GUID,
@@ -131,12 +146,14 @@ struct SpDevInfoData {
 }
 
 #[repr(C)]
+#[cfg(windows)]
 struct SpDeviceInfoDetailData {
     cb_size: u32,
     _dev_path: [u16; 520], // MAX_PATH + some
 }
 
 // USB Node Information
+#[cfg(windows)]
 const NODE_INFO_BUF_SIZE: usize = 512;
 
 #[cfg(windows)]
@@ -273,6 +290,7 @@ unsafe fn close_handle(h: HANDLE) {
 
 
 
+#[cfg(windows)]
 fn enumerate_controllers() -> Result<Vec<UsbController>> {
     // Discover the hub interface class GUIDs this system actually uses
     // (some machines/VMs register non-standard GUIDs), then enumerate via
@@ -423,6 +441,7 @@ unsafe fn enumerate_hub_paths_for_guid(h_dev_info: HANDLE, guid: &GUID) -> Vec<S
 
 /// Scan the registry DeviceClasses tree and return the interface class GUIDs
 /// that contain USB root hub interfaces (works with non-standard GUIDs too).
+#[cfg(windows)]
 fn discover_hub_interface_guids() -> Vec<GUID> {
     const HKEY_LOCAL_MACHINE: HANDLE = 0x80000002usize as HANDLE;
     const KEY_READ: u32 = 0x20019;
@@ -532,6 +551,7 @@ fn discover_hub_interface_guids() -> Vec<GUID> {
 }
 
 /// Parse a GUID string like {xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx}
+#[cfg(windows)]
 fn parse_guid(s: &str) -> Option<GUID> {
     let s = s.trim().trim_start_matches('{').trim_end_matches('}');
     let parts: Vec<&str> = s.split('-').collect();
@@ -559,6 +579,7 @@ fn parse_guid(s: &str) -> Option<GUID> {
 
 
 
+#[cfg(windows)]
 fn count_hub_ports(hub_path: &str) -> u32 {
     unsafe {
         let h = match open_hub(hub_path) {
@@ -609,6 +630,7 @@ fn count_hub_ports(hub_path: &str) -> u32 {
 }
 
 /// Query each port on a hub for connected devices
+#[cfg(windows)]
 fn query_hub_ports(
     hub_path: &str,
     port_count: u32,
@@ -685,11 +707,17 @@ fn query_hub_ports(
 
 // ─── USB Device Enumeration (SetupAPI) ────────────────────────────
 
+#[cfg(windows)]
 const SPDRP_DEVICEDESC: u32 = 0x00000000;
+#[cfg(windows)]
 const SPDRP_COMPATIBLEIDS: u32 = 0x00000002;
+#[cfg(windows)]
 const SPDRP_SERVICE: u32 = 0x00000004;
+#[cfg(windows)]
 const SPDRP_MFG: u32 = 0x0000000B;
+#[cfg(windows)]
 const SPDRP_FRIENDLYNAME: u32 = 0x0000000C;
+#[cfg(windows)]
 const SPDRP_LOCATION_INFORMATION: u32 = 0x0000000D;
 
 /// Read a string registry property for a device
@@ -715,6 +743,7 @@ unsafe fn get_dev_string(h: HANDLE, dev: &SpDevInfoData, prop: u32) -> String {
 /// True when the device's parent is itself a USB device (a hub or a composite
 /// parent). Hubs and host controllers hang off PCI/ACPI instead, so this
 /// separates real peripherals from hubs.
+#[cfg(windows)]
 fn parent_is_usb_device(dev_inst: u32) -> bool {
     let mut parent: u32 = 0;
     if unsafe { CM_Get_Parent(&mut parent, dev_inst, 0) } != 0 {
@@ -730,6 +759,7 @@ fn parent_is_usb_device(dev_inst: u32) -> bool {
 }
 
 /// Instance ID of the device's immediate parent (the hub it is attached to).
+#[cfg(windows)]
 fn parent_hub_instance(dev_inst: u32) -> String {
     let mut parent: u32 = 0;
     if unsafe { CM_Get_Parent(&mut parent, dev_inst, 0) } != 0 {
@@ -746,6 +776,7 @@ fn parent_hub_instance(dev_inst: u32) -> String {
 /// Physical port number on the immediate hub, from the location string
 /// (e.g. "Port_#0004.Hub_#0010" -> 4). Uses the LAST Port_# segment, which
 /// corresponds to the direct parent hub for nested topologies.
+#[cfg(windows)]
 fn device_location_port(h: HANDLE, dev: &SpDevInfoData) -> u32 {
     let loc = unsafe { get_dev_string(h, dev, SPDRP_LOCATION_INFORMATION) };
     let mut port = 0u32;
@@ -768,6 +799,7 @@ fn device_location_port(h: HANDLE, dev: &SpDevInfoData) -> u32 {
 /// Canonical key of a hub from its device-interface path.
 /// Path: "\\?\usb#vid_2109&pid_0822#6&1b2b7d3c&0&0#{guid}"
 /// Key:  "vid_2109&pid_0822#6&1b2b7d3c&0&0"
+#[cfg(windows)]
 fn hub_key_from_service_path(path: &str) -> Option<String> {
     let tokens: Vec<&str> = path.split('#').collect();
     // tokens[0] = "\\?\usb"; drop it, then stop at the "{guid}" token.
@@ -786,6 +818,7 @@ fn hub_key_from_service_path(path: &str) -> Option<String> {
 /// Canonical key of a hub from a device instance ID.
 /// Instance: "USB\VID_2109&PID_0822\6&1B2B7D3C&0&0"
 /// Key:      "vid_2109&pid_0822#6&1b2b7d3c&0&0"
+#[cfg(windows)]
 fn hub_key_from_dev_instance(instance: &str) -> String {
     let s = if let Some(stripped) = instance.strip_prefix("USB\\") {
         stripped
@@ -797,6 +830,7 @@ fn hub_key_from_dev_instance(instance: &str) -> String {
 
 /// Read the real USB device class (bDeviceClass) from the device's
 /// Compatible IDs (e.g. "USBClass_09" for hubs, "DevClass_00" for composites).
+#[cfg(windows)]
 fn parse_device_class(h: HANDLE, dev: &SpDevInfoData) -> u8 {
     let comp = unsafe { get_dev_string(h, dev, SPDRP_COMPATIBLEIDS) };
     for token in comp.split(['\\', '&']) {
@@ -813,6 +847,7 @@ fn parse_device_class(h: HANDLE, dev: &SpDevInfoData) -> u8 {
     0
 }
 
+#[cfg(windows)]
 fn enumerate_usb_devices() -> Vec<(UsbDevice, String, u32)> {
     let mut devices: Vec<(UsbDevice, String, u32)> = Vec::new();
     unsafe {
@@ -958,6 +993,7 @@ fn enumerate_usb_devices() -> Vec<(UsbDevice, String, u32)> {
 
 // ─── Public API ───────────────────────────────────────────────────
 
+#[cfg(windows)]
 pub fn full_scan() -> Result<UsbSnapshot> {
     let controllers = enumerate_controllers().context("Failed to enumerate USB hubs")?;
 
@@ -1008,6 +1044,18 @@ pub fn full_scan() -> Result<UsbSnapshot> {
     })
 }
 
+
+#[cfg(not(windows))]
+pub fn full_scan() -> Result<UsbSnapshot> {
+    // Non-Windows: USB scanning relies on Win32 SetupAPI/cfgmgr32 APIs only.
+    // Return an empty snapshot so the app boots with zero devices.
+    Ok(UsbSnapshot {
+        controllers: Vec::new(),
+        ports: Vec::new(),
+        devices: Vec::new(),
+        scan_time: chrono_free(),
+    })
+}
 // ─── Helpers ──────────────────────────────────────────────────────
 
 fn chrono_free() -> String {
@@ -1063,6 +1111,7 @@ mod tests {
     }
 
     #[test]
+#[cfg(windows)]
     fn parse_guid_valid() {
         let g = parse_guid("{f18a0e88-c30c-11d0-81e9-00a0c91eeb34}").expect("should parse");
         assert_eq!(g.data1, 0xf18a0e88);
@@ -1072,6 +1121,7 @@ mod tests {
     }
 
     #[test]
+#[cfg(windows)]
     fn parse_guid_accepts_no_braces() {
         let g = parse_guid("00000000-0000-0000-0000-000000000000").expect("should parse");
         assert_eq!(g.data1, 0);
@@ -1079,6 +1129,7 @@ mod tests {
     }
 
     #[test]
+#[cfg(windows)]
     fn parse_guid_rejects_invalid() {
         assert!(parse_guid("").is_none());
         assert!(parse_guid("not-a-guid").is_none());
