@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CableScope</title>
+  <link rel="stylesheet" href="/src/styles.css" />
+</head>
+<body>
+  <!-- ── Header ────────────────────────────────────────────── -->
+  <header class="app-header">
+    <div class="header-left">
+      <span class="logo">⚡</span>
+      <h1>CableScope</h1>
+      <span class="subtitle">USB-C Inspector</span>
+    </div>
+    <div class="header-right">
+      <span id="scan-time" class="scan-time">—</span>
+      <button id="btn-back" class="btn btn-back" title="Retour (Alt+←)" hidden>← Retour</button>
+      <button id="btn-scan" class="btn btn-primary" title="Scanner les ports USB">⟳ Scanner</button>
+    </div>
+  </header>
+
+  <!-- ── Summary Bar ───────────────────────────────────────── -->
+  <div class="summary-bar">
+    <div class="summary-item">
+      <span class="summary-label">Ports</span>
+      <span class="summary-value" id="total-ports">0</span>
+    </div>
+    <div class="summary-item">
+      <span class="summary-label">Connectés</span>
+      <span class="summary-value" id="connected-ports">0</span>
+    </div>
+    <div class="summary-item">
+      <span class="summary-label">Devices</span>
+      <span class="summary-value" id="total-devices">0</span>
+    </div>
+    <div class="summary-item">
+      <span class="summary-label">Contrôleurs</span>
+      <span class="summary-value" id="total-controllers">0</span>
+    </div>
+  </div>
+
+  <!-- ── Tab Navigation ────────────────────────────────────── -->
+  <nav class="tabs">
+    <button class="tab active" data-tab="ports">
+      <span class="tab-icon">🔌</span> Ports
+    </button>
+    <button class="tab" data-tab="devices">
+      <span class="tab-icon">📱</span> Devices
+    </button>
+    <button class="tab" data-tab="power">
+      <span class="tab-icon">⚡</span> Power
+    </button>
+    <button class="tab" data-tab="settings">
+      <span class="tab-icon">⚙</span> Settings
+    </button>
+  </nav>
+
+  <!-- ── Tab Content ───────────────────────────────────────── -->
+  <main class="content">
+    <!-- Ports Tab -->
+    <section id="tab-ports" class="tab-content active">
+      <div id="ports-list" class="ports-grid">
+        <div class="empty-state">
+          <span class="empty-icon">🔌</span>
+          <p>Cliquez sur <strong>Scanner</strong> pour détecter les ports USB-C</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Devices Tab -->
+    <section id="tab-devices" class="tab-content">
+      <div class="device-search-wrap">
+        <input type="text" id="device-search" class="device-search"
+               placeholder="Rechercher par nom, VID:PID, hub, serial…" autocomplete="off" spellcheck="false">
+        <span class="device-search-icon">🔍</span>
+        <button id="device-search-clear" class="device-search-clear" title="Effacer" hidden>✕</button>
+      </div>
+      <div id="devices-list">
+        <div class="empty-state">
+          <span class="empty-icon">📱</span>
+          <p>Aucun device détecté</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Power Tab -->
+    <section id="tab-power" class="tab-content">
+      <div id="power-info">
+        <div class="power-card">
+          <h3>⚡ Power Delivery</h3>
+          <p class="muted">L'info PD est disponible uniquement sur les systèmes UCSI-compatible.</p>
+          <div id="ucsi-status" class="ucsi-status">
+            <div class="status-dot gray"></div>
+            <span>En attente de scan...</span>
+          </div>
+          <div id="pd-contracts"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Settings Tab -->
+    <section id="tab-settings" class="tab-content">
+      <div class="settings-grid">
+        <div class="setting-group">
+          <label for="refresh-interval">Intervalle de rafraîchissement (secondes)</label>
+          <input type="number" id="refresh-interval" min="1" max="60" value="3" />
+        </div>
+        <div class="setting-group">
+          <label class="toggle-label">
+            <input type="checkbox" id="notifications" checked />
+            <span class="toggle-switch"></span>
+            Notifications de branchement
+          </label>
+        </div>
+        <div class="setting-group">
+          <label class="toggle-label">
+            <input type="checkbox" id="hide-empty" checked />
+            <span class="toggle-switch"></span>
+            Masquer les ports vides
+          </label>
+        </div>
+        <div class="setting-group">
+          <label class="toggle-label">
+            <input type="checkbox" id="auto-scan" checked />
+            <span class="toggle-switch"></span>
+            Auto-scan au démarrage
+          </label>
+        </div>
+        <div class="setting-group">
+          <label for="occupancy-alert">Alerte d'occupation des hubs (%)</label>
+          <input type="number" id="occupancy-alert" min="0" max="100" value="80" />
+          <div class="muted" style="font-size:11px; margin-top:6px;">
+            Notifie quand un hub dépasse ce taux de ports occupés (0 = désactivé)
+          </div>
+        </div>
+        <div class="setting-group">
+          <button id="export-json" class="btn" style="width:100%;">⬇ Exporter le scan (JSON)</button>
+          <div id="export-status" class="muted" style="font-size:11px; margin-top:6px;">Exporte controllers, ports, devices, power_role, classe USB…</div>
+        </div>
+        <div class="setting-group">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+            <label style="margin:0;">Historique des alertes d'occupation</label>
+            <button id="clear-alert-history" class="btn btn-back" style="padding:3px 8px; font-size:11px;">Vider</button>
+          </div>
+          <div id="alert-history-list" class="alert-history-list muted" style="font-size:11px;">
+            Aucune alerte enregistrée
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ── Hub context menu (right-click on occupancy bar) ── -->
+  <div id="hub-context-menu" class="hub-context-menu" hidden>
+    <button class="hub-ctx-item" data-action="rescan">🔄 Re-scanner ce hub</button>
+    <button class="hub-ctx-item" data-action="copy">📋 Copier le nom du hub</button>
+  </div>
+
+  <!-- ── Footer ────────────────────────────────────────────── -->
+  <footer class="app-footer">
+    <span>CableScope v1.0.0</span>
+    <span class="muted">USB-C Cable & Port Inspector for Windows</span>
+  </footer>
+
+  <script type="module" src="/src/app.js"></script>
+</body>
+</html>
