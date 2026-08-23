@@ -15,7 +15,7 @@ jobs:
   create-release:
     runs-on: ubuntu-latest
     outputs:
-      upload_url: ${{ steps.create-release.outputs.upload_url }}
+      release_id: ${{ steps.create-release.outputs.releaseId }}
     steps:
       - uses: actions/checkout@v4
 
@@ -104,7 +104,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: ${{ github.ref_name }}
-          uploadUrl: ${{ needs.create-release.outputs.upload_url }}
+          releaseId: ${{ needs.create-release.outputs.release_id }}
       - name: Tester l'installation silencieuse (Windows)
         if: matrix.platform == 'windows-latest'
         shell: pwsh
