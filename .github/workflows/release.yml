@@ -29,7 +29,7 @@ jobs:
           releaseBody: |
             ## CableScope — release ${{ github.ref_name }}
 
-            - **Windows** : `.exe` (installeur NSIS) + `.msi` — testé
+            - **Windows** : `.exe` (installeur NSIS) + `.msi` — testé (installation/désinstallation silencieuses validées en CI)
             - **macOS** : `.dmg` / `.app` — **non testé** (scan USB = API Win32)
             - **Linux** : `.deb` / `.AppImage` — **non testé** (scan USB = API Win32)
 
@@ -82,3 +82,56 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           uploadUrl: ${{ needs.create-release.outputs.upload_url }}
+      - name: Tester l'installation silencieuse (Windows)
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $setup = Get-ChildItem 'src-tauri/target/release/bundle/nsis/*-setup.exe' | Select-Object -First 1
+          if (-not $setup) { throw "Installeur NSIS introuvable" }
+
+          # 1) Installation silencieuse (NSIS /S)
+          Start-Process -FilePath $setup.FullName -ArgumentList '/S' -Wait
+          Start-Sleep -Seconds 6
+
+          # 2) Localiser l'exe installe : chemin par defaut, registre, puis recherche
+          $exe = "$env:LOCALAPPDATA\CableScope\cablescope.exe"
+          if (-not (Test-Path $exe)) {
+            $reg = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\CableScope' -ErrorAction SilentlyContinue
+            if ($reg -and $reg.InstallLocation) {
+              $cand = Join-Path $reg.InstallLocation 'cablescope.exe'
+              if (Test-Path $cand) { $exe = $cand }
+            }
+          }
+          if (-not (Test-Path $exe)) {
+            $found = Get-ChildItem $env:LOCALAPPDATA -Recurse -Filter 'cablescope.exe' -ErrorAction SilentlyContinue |
+              Where-Object { $_.FullName -notlike '*\target\*' } | Select-Object -First 1
+            if ($found) { $exe = $found.FullName }
+          }
+          if (-not (Test-Path $exe)) { throw "cablescope.exe introuvable apres installation" }
+          Write-Host "OK installe : $exe"
+
+          # 3) Lancement de controle : l'app doit rester en vie ~8s
+          $p = Start-Process -FilePath $exe -PassThru
+          Start-Sleep -Seconds 8
+          if ($p.HasExited) { throw "L'app a quitte prematurement (code $($p.ExitCode))" }
+          Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+          Write-Host "OK : l'application se lance"
+
+          # 4) Desinstallation silencieuse puis verification de la suppression
+          $un = Join-Path (Split-Path $exe) 'uninstall.exe'
+          if (-not (Test-Path $un)) {
+            $reg = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\CableScope' -ErrorAction SilentlyContinue
+            if ($reg -and $reg.UninstallString) {
+              $cand = ($reg.UninstallString -replace '"', '').Trim()
+              if (Test-Path $cand) { $un = $cand }
+            }
+          }
+          if (Test-Path $un) {
+            Start-Process -FilePath $un -ArgumentList '/S' -Wait
+            Start-Sleep -Seconds 6
+          } else {
+            throw "uninstall.exe introuvable, desinstallation non verifiee"
+          }
+          if (Test-Path $exe) { throw "cablescope.exe existe encore apres desinstallation" }
+          Write-Host "OK : desinstallation silencieuse validee"
