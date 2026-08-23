@@ -258,10 +258,12 @@ extern "system" {
     fn GetLastError() -> u32;
 }
 
+#[cfg(windows)]
 unsafe fn wide_string(s: &str) -> Vec<u16> {
     s.encode_utf16().chain(std::iter::once(0)).collect()
 }
 
+#[cfg(windows)]
 unsafe fn open_hub(hub_path: &str) -> Result<HANDLE> {
     let wide = wide_string(hub_path);
     let h = CreateFileW(
@@ -280,6 +282,7 @@ unsafe fn open_hub(hub_path: &str) -> Result<HANDLE> {
     Ok(h)
 }
 
+#[cfg(windows)]
 unsafe fn close_handle(h: HANDLE) {
     if !h.is_null() && h != INVALID_HANDLE_VALUE {
         CloseHandle(h);
@@ -364,6 +367,7 @@ fn enumerate_controllers() -> Result<Vec<UsbController>> {
 }
 
 /// Enumerate all device interfaces of the given class GUID and return their paths
+#[cfg(windows)]
 unsafe fn enumerate_hub_paths_for_guid(h_dev_info: HANDLE, guid: &GUID) -> Vec<String> {
     let mut paths = Vec::new();
     let mut index = 0u32;
@@ -721,6 +725,7 @@ const SPDRP_FRIENDLYNAME: u32 = 0x0000000C;
 const SPDRP_LOCATION_INFORMATION: u32 = 0x0000000D;
 
 /// Read a string registry property for a device
+#[cfg(windows)]
 unsafe fn get_dev_string(h: HANDLE, dev: &SpDevInfoData, prop: u32) -> String {
     let mut buf = [0u16; 256];
     let ok = SetupDiGetDeviceRegistryPropertyW(
