@@ -2,6 +2,8 @@
 
 [![CI](https://github.com/Endymi0n74/cablescope/actions/workflows/release.yml/badge.svg)](https://github.com/Endymi0n74/cablescope/actions/workflows/release.yml)
 
+**🇫🇷 Français** · [🇬🇧 English](README.en.md)
+
 Inspectez vos ports USB-C et les appareils branchés en un coup d'œil : hubs, ports,
 devices, topologie physique et état de charge déduit.
 
